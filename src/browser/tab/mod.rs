@@ -42,7 +42,7 @@ use Log::ViolationSetting;
 
 use Fetch::{
     events::RequestPausedEvent, AuthChallengeResponse, ContinueRequest, ContinueWithAuth,
-    FailRequest, FulfillRequest,
+    FailRequest, FulfillRequest, AuthChallengeResponseResponse::{ProvideCredentials, CancelAuth}
 };
 
 use Network::{
@@ -67,6 +67,7 @@ pub enum RequestPausedDecision {
     Fulfill(FulfillRequest),
     Fail(FailRequest),
     Continue(Option<ContinueRequest>),
+    ContinueWithAuth(Option<String>, Option<String>),
 }
 
 #[rustfmt::skip]
@@ -361,6 +362,30 @@ impl Tab {
                                         )
                                         .map(|_| ())
                                 }
+                            }
+                            RequestPausedDecision::ContinueWithAuth(username, password) => {
+                                let resp = match username {
+                                        None =>  AuthChallengeResponse {
+                                                response: CancelAuth {},
+                                                username: None,
+                                                password: None,
+                                            },
+                                        Some(ref _u) => AuthChallengeResponse {
+                                                response: ProvideCredentials {},
+                                                username: username,
+                                                password: password,
+                                        }
+                                    };
+
+                                   transport
+                                        .call_method_on_target(
+                                            session_id.clone(),
+                                            ContinueWithAuth {
+                                                request_id: event.params.request_id,
+                                                auth_challenge_response: resp,
+                                            },
+                                        )
+                                        .map(|_| ())
                             }
                             RequestPausedDecision::Fulfill(fulfill_request) => transport
                                 .call_method_on_target(session_id.clone(), fulfill_request)
